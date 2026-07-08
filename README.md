@@ -280,18 +280,3 @@ Inspect raw fields in logs tagged `[BLE-DATA] len=16`:
 raw / ac / sm / base / act1000
 ```
 If `raw/ac/smooth` values barely fluctuate, inspect EMG sensor power supply, GND wiring, electrode patches, signal cables and ADC input pins first.
-
-## Open Source License Guidelines
-Complete the following materials before open-sourcing the project:
-- Project open-source license (e.g., MIT, Apache-2.0 or GPL)
-- Hardware wiring diagrams and physical device photos
-- RDK system image version and TROS environment version documentation
-- Unity project repository link or full communication protocol document
-- Do not commit official WeChat Mini Program AppID to public repositories; retain `touristappid` or sample configuration as placeholder.
-
-## Maintenance Records
-Full historical debugging records are stored in the file:
-```text
-Project Introduction & Debug Logs.md
-```
-After modifying any RDK, STM32, ESP32 or Mini Program code, append a new record to the end of the document, including modifier name, fault phenomenon, root cause analysis, modification details, verification results and unresolved remaining issues.
