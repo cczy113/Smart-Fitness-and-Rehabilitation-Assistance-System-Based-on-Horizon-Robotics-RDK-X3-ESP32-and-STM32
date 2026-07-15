@@ -2,7 +2,7 @@
 
 LingJing Guardian is a multimodal prototype for rehabilitation and fitness monitoring. An RDK X3 runs body-pose inference and data fusion, ESP32-C3 nodes acquire EMG data, and an STM32F103 controls a two-axis servo pan-tilt. The RDK broadcasts fused data to a WeChat Mini Program and Unity through WebSocket.
 
-This release keeps reproducible source code and excludes generated artifacts. The lean repository is about **2 MB**, well below 25 MB. It does not include tool installers, archives, binaries, logs, backups, or machine-specific settings.
+This release keeps reproducible source code and excludes generated artifacts. The lean repository is about **2 MB**, well below 25 MB. It does not include tool installers, binaries, logs, backups, or machine-specific settings.
 
 [中文说明 / Chinese README](README_cn.md)
 
