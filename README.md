@@ -1,282 +1,193 @@
-# LingJing Guardian
+# LingJing Guardian (Lean Open-Source Edition)
 
-A multimodal motion analysis system targeting rehabilitation training and fitness movement monitoring. This project leverages RDK X3 for human pose recognition and data fusion, adopts ESP32-C3 to collect electromyography (EMG) signals, employs STM32F103 to drive pan-tilt servos, and transmits real-time motion and EMG data to Unity and WeChat Mini Programs via WebSocket.
+LingJing Guardian is a multimodal prototype for rehabilitation and fitness monitoring. An RDK X3 runs body-pose inference and data fusion, ESP32-C3 nodes acquire EMG data, and an STM32F103 controls a two-axis servo pan-tilt. The RDK broadcasts fused data to a WeChat Mini Program and Unity through WebSocket.
 
-> This project is currently at the competition prototype stage, with codes prioritizing reproducibility, debuggability and demonstration. Hardware wiring configurations, IP addresses, serial port numbers and AppIDs need modification according to actual deployed devices.
+This release keeps reproducible source code and excludes generated artifacts. The lean repository is about **2 MB**, well below 25 MB. It does not include tool installers, archives, binaries, logs, backups, or machine-specific settings.
 
-## Functional Features
-- RDK X3 executes human skeleton key point recognition to extract COCO 17-point pose data.
-- Calculates upper limb motion metrics, including flexion angles of left and right elbow joints, as well as the angular difference between the two sides.
-- ESP32-C3 transmits raw EMG data packets through BLE Notify, containing fields: `raw`, `acRMS`, `smooth`, `baseline`, `activation`.
-- The RDK receives BLE EMG data from ESP32 and aligns timestamps with visual image frames.
-- RDK outputs real-time JSON data compatible with Unity and Mini Programs via WebSocket.
-- STM32F103 receives visual error data from RDK through serial ports and generates PWM signals to control the 2-axis pan-tilt servos.
-- Physical buttons support starting and stopping the full-link program on RDK, equipped with a watchdog for automatic system restart.
-- WeChat Mini Program connects to the RDK WebSocket to display left and right upper arm EMG values, left and right elbow angles, motion status and analysis reports.
+[中文说明 / Chinese README](README_cn.md)
 
-## System Architecture
+## Architecture
+
 ```text
-USB Camera
-   |
-   v
-RDK X3 / TROS / ROS 2 / mono2d_body_detection
-   |                         |
-   | UART3 /dev/ttyS3        | WebSocket ws://RDK_IP:8765
-   v                         v
-STM32F103C8T6            Unity Human Body Model / WeChat Mini Program
-   |
-   v
-2-Axis Servo Pan-Tilt
+USB Camera -> RDK X3 / TROS body detection -> pose fusion bridge -> WebSocket -> Mini Program / Unity
+                                      |
+                                      +-> UART3 -> STM32F103 -> 2-axis servo pan-tilt
 
-ESP32-C3 EMG Collection Node
-   |
-   v
-BLE Notify -> RDK X3 Fusion Bridge
+ESP32-C3 EMG node -> BLE Notify -> RDK pose fusion bridge
 ```
 
-## Directory Structure
+## Repository Layout
+
+Only core source files, main project files, and communication documentation are kept in this repository:
+
 ```text
 .
-├── button_monitor.py              # RDK button trigger for program start/stop and watchdog management
-├── gimbal_to_stm32.py             # Serial bridge transmitting pose error data from RDK to STM32
-├── rdk_pose_fusion_bridge.py      # Fusion bridge integrating pose data, EMG signals, Unity and Mini Program data streams
-├── run_all.sh                     # One-click startup script for RDK
-├── Unity Communication Protocol Specification.md           # Documentation of WebSocket data protocol for Unity
-├── Project Introduction & Debug Logs.md          # Project details and historical debugging records
-├── Servo Pan-Tilt/                     # STM32F103 Keil engineering project
-├── Final EMG Detection Branch/            # ESP32-C3 EMG PlatformIO engineering project
-├── MiniProgram/                       # WeChat Mini Program engineering project
-└── rdk_backup/                   # Backup folder for RDK scripts
+├── README.md
+├── README_cn.md
+├── docs/
+│   └── Unity人体模型通信协议及使用方法.md
+├── rdk/
+│   ├── button_monitor.py
+│   ├── gimbal_to_stm32.py
+│   ├── rdk_pose_fusion_bridge.py
+│   └── run_all.sh
+├── miniprogram/
+│   ├── app.js, app.json, app.wxss
+│   ├── project.config.json
+│   ├── sitemap.json
+│   ├── pages/
+│   └── utils/
+├── esp32_emg/
+│   ├── .gitignore
+│   ├── platformio.ini
+│   ├── README.md
+│   ├── src/main.cpp
+│   └── docs/ble_protocol.md
+└── stm32_gimbal/LingJingGimbal/
+    ├── Project.uvprojx
+    ├── Start/
+    ├── Library/
+    ├── Hardware/
+    └── User/
 ```
 
-## Hardware Bill of Materials
-- RDK X3 Development Board
-- USB Camera
-- STM32F103C8T6 Minimum System Board
-- Two ESP32-C3 Development Boards (dual-channel demonstration for left and right arms recommended)
-- EMG Sensor Modules
-- 2-Axis Pan-Tilt Bracket with Servos
-- Physical Buttons, 10k Pull-up Resistors, Jumper Wires, External Power Supply for Servos
+| Component | Contents | Purpose |
+|---|---|---|
+| RDK | `rdk_pose_fusion_bridge.py`, `gimbal_to_stm32.py`, `button_monitor.py`, `run_all.sh` | Fusion, gimbal serial bridge, button watchdog, launcher |
+| Mini Program | `小程序2`: `app.*`, `project.config.json`, `sitemap.json`, all `pages/`, all `utils/` | Current training and monitoring application source |
+| ESP32 | `.gitignore`, `platformio.ini`, `README.md`, `src/main.cpp`, `docs/ble_protocol.md` under `肌电检测分支最终版/esp32_emg_firmware/esp32_emg_firmware` | PlatformIO source and BLE packet definition |
+| STM32 | `Project.uvprojx`, `Start/`, `Library/`, `Hardware/`, `User/` under `舵机云台/舵机云台` | Keil project and every source file referenced by it |
+| Unity | `Unity人体模型通信协议及使用方法.md` | WebSocket specification, COCO-17 mapping, and a `RdkPoseClient.cs` integration example |
 
-## Hardware Wiring Connections
-### RDK X3 to STM32
-```text
-RDK X3 Pin 8  UART3_TXD -> STM32 PA10 USART1_RX
-RDK X3 Pin 10 UART3_RXD <- STM32 PA9 USART1_TX (optional)
-RDK X3 GND             -> STM32 GND
-```
-Serial Port Parameters:
-```text
-Device: /dev/ttyS3
-Baud Rate: 115200
-Format: 8N1
-Protocol: E{error}\n
-Example: E-42\n
-```
+Not included in this repository:
 
-### RDK X3 Button Circuit
-```text
-RDK X3 Pin 28 GPIO -> One terminal of the button
-RDK X3 Pin 30 GND  -> The other terminal of the button
-RDK X3 Pin 17 3.3V -> 10k Pull-up Resistor -> Pin 28
+- Tool installers, project archives, firmware images, and other binary release packages.
+- ESP32 `.pio/`, `.venv/`, `.vscode/`, `compile_commands.json`, caches, and compiled firmware.
+- STM32 `Objects/`, `Listings/`, `DebugConfig/`, `*.uvoptx`, `*.uvguix.*`, object files, build output, backups, and archives.
+- `rdk_backup/`, logs, screenshots, videos, images, historical debug records, and device images.
+- `project.private.config.json` and `sourcemap.zip` from the Mini Program.
+
+The Mini Program configuration uses `touristappid` as a public example. Set your own AppID locally when needed, and do not commit personal project configuration or private developer settings.
+
+## Quick Start
+
+### ESP32-C3 EMG node
+
+Open `esp32_emg/` in VS Code with PlatformIO:
+
+```bash
+pio run
+pio run -t upload
+pio device monitor -b 115200
 ```
 
-### ESP32-C3 EMG Sensor Wiring
-```text
-ESP32-C3 GPIO0 / ADC1_CH0 -> Signal Output Pin of EMG Sensor
-ESP32-C3 3.3V or 5V       -> VCC Pin of EMG Sensor (select based on sensor specifications)
-ESP32-C3 GND              -> GND Pin of EMG Sensor
-```
+- EMG input: `GPIO0 / ADC1_CH0`; status LED: `GPIO8`.
+- Keep `DEVICE_NAME` as `LS_ARM_BICEPS` on the first board. Change it to `LS_ARM_TRICEPS` before flashing a second board.
+- `upload_port` and `monitor_port` in `platformio.ini` are site-specific. Replace them with the active serial port or remove both entries for automatic detection.
+- Keep muscles relaxed during the approximately 8-second power-on calibration. See `docs/ble_protocol.md` for the BLE service, characteristic, and binary packet.
 
-## Quick Start Guide
-### 1. RDK X3 Side Deployment
-Place the following files under `/root/` directory of RDK:
+### STM32F103 pan-tilt
+
+Open `stm32_gimbal/LingJingGimbal/Project.uvprojx` in Keil uVision, select the STM32F103C8 target, then build and flash.
+
+- `PA10 / USART1_RX` receives `E{error}\n` frames from the RDK.
+- `PA0 / TIM2_CH1` outputs 50 Hz servo PWM.
+- The OLED uses software I2C on `PB8/PB9`.
+- Power servos from a separate regulated supply and connect its ground to the STM32/RDK ground. Do not power servos from the board's 3.3 V pin.
+
+### RDK X3
+
+The RDK needs a TROS/ROS 2 body-detection setup that publishes `/hobot_mono2d_body_detection`. Copy the four files from `rdk/` to `/root/` on the board:
+
 ```text
 /root/button_monitor.py
 /root/gimbal_to_stm32.py
 /root/rdk_pose_fusion_bridge.py
 /root/run_all.sh
 ```
-Ensure `run_all.sh` uses LF line endings. Avoid using `set -u`, otherwise the TROS environment script may throw the error `AMENT_TRACE_SETUP_FILES: unbound variable`.
 
-Common Commands:
+Install the Python packages appropriate for the RDK image:
+
 ```bash
-chmod +x /root/button_monitor.py /root/gimbal_to_stm32.py /root/rdk_pose_fusion_bridge.py /root/run_all.sh
+python3 -m pip install bleak websockets pyserial
 python3 -m py_compile /root/button_monitor.py /root/gimbal_to_stm32.py /root/rdk_pose_fusion_bridge.py
-systemctl restart button_monitor.service
-systemctl status button_monitor.service --no-pager
+chmod +x /root/run_all.sh
 ```
-After pressing the physical button, the RDK executes the following program chain:
-```text
-run_all.sh
-  -> start_ai.sh
-  -> rdk_pose_fusion_bridge.py --ws-port 8765
-  -> gimbal_to_stm32.py
-```
-View real-time running logs:
+
+The RDK image must also provide `dbus-python`, PyGObject, TROS/ROS 2 `rclpy`, `ai_msgs`, and `Hobot.GPIO` (or a compatible GPIO library).
+
+Before running `run_all.sh`, verify that a matching `/root/start_ai.sh` already exists on the RDK. It launches the camera and `mono2d_body_detection`, and is tightly coupled to the TROS image, model, and camera configuration. It is intentionally not included in this lean repository.
+
 ```bash
-tail -f /root/lingjing_run.log
+bash /root/run_all.sh
 ```
 
-### 2. ESP32-C3 EMG Firmware
-Project Path:
-```text
-Final EMG Detection Branch/esp32_emg_firmware/esp32_emg_firmware
-```
-Open the directory with VS Code + PlatformIO, or run commands in terminal:
+The default bridge connects one EMG board:
+
 ```bash
-pio run
-pio run -t upload
-pio device monitor -b 115200
-```
-Default device name for the first board:
-```cpp
-#define DEVICE_NAME "LS_ARM_BICEPS"
-```
-Modify the definition for the second board before flashing firmware:
-```cpp
-#define DEVICE_NAME "LS_ARM_TRICEPS"
-```
-An approximate 8-second calibration phase initiates after power-on; keep muscles relaxed during calibration. Serial port CSV output format:
-```text
-raw,acRMS,smooth,baseline,act
-```
-BLE Notify v3 data packet is a 16-byte little-endian binary structure:
-```text
-Offset  Length  Definition
-0       2       ASCII header "LJ"
-2       1       Version number 3
-3       1       Flags; bit0=1 indicates calibration in progress
-4       2       Sequence number
-6       2       Raw ADC reading
-8       2       acRMS multiplied by 100
-10      2       smooth value multiplied by 100
-12      2       baseline value multiplied by 100
-14      2       activation value multiplied by 1000
+python3 /root/rdk_pose_fusion_bridge.py --ws-port 8765 --emg-device LS_ARM_BICEPS:biceps_l
 ```
 
-### 3. STM32 Pan-Tilt Firmware
-Keil Project Path:
-```text
-Servo Pan-Tilt/Servo Pan-Tilt/Project.uvprojx
-```
-Core Logic:
-- USART1 RX pin PA10: Receives serial protocol frames `E{error}\n` from RDK
-- TIM2_CH1 pin PA0: Outputs 50Hz PWM signals to drive servos
-- OLED screen displays diagnostic metrics including `RX/F/B/PWM/HB`
+Add `--emg-device LS_ARM_TRICEPS:biceps_r` only when the second ESP32 has been flashed and powered. The bridge broadcasts `pose_fusion` JSON at 20 Hz to `ws://<RDK_IP>:8765`.
 
-Explanation of OLED diagnostic indicators:
-```text
-Increment F: Complete frame formatted as E...\n received
-Increment B: Raw serial byte input detected on PA10
-C=0A: Line feed character received, marking valid frame end
-Increment HB: STM32 main loop runs normally
-```
+### WeChat Mini Program
 
-### 4. Unity Integration
-The RDK acts as a WebSocket Server with address format:
+Import `miniprogram/` into WeChat DevTools.
+
+1. Disable domain validation in DevTools for local `ws://` development.
+2. Set the RDK address in the app UI, or edit `utils/rdkSocket.js` to use `ws://<RDK_IP>:8765`.
+3. Use your own AppID and add developers in the WeChat Public Platform for physical-device tests.
+4. Production deployment normally requires `wss://` and an approved Socket domain; LAN `ws://` is development-only.
+
+### Unity
+
+Unity acts as a WebSocket client:
+
 ```text
 ws://<RDK_IP>:8765
 ```
-Default test address example:
-```text
-ws://192.168.137.230:8765
-```
-All transmitted messages are JSON objects with core fields as follows:
-```json
-{
-  "timestamp": 0,
-  "frame_id": 0,
-  "type": "pose_fusion",
-  "skeleton": {
-    "keypoints": [],
-    "num_points": 17,
-    "angles": {
-      "left_elbow_flexion_deg": 0,
-      "right_elbow_flexion_deg": 0
-    }
-  },
-  "sensors": {
-    "channels": {
-      "biceps_l": {
-        "raw": 0,
-        "force_pct": 0,
-        "activation": 0,
-        "status": "ok"
-      }
-    }
-  },
-  "assessment": {
-    "upper_arm": {
-      "status": "ok"
-    }
-  },
-  "alert": {
-    "type": "none"
-  }
-}
-```
-Refer to the full communication specification file:
-```text
-Unity Communication Protocol Specification.md
+
+Read [Unity Human Model Communication Protocol and Usage](docs/Unity人体模型通信协议及使用方法.md). It specifies all JSON fields, COCO-17 mapping, null/disconnect handling, and includes a NativeWebSocket + Newtonsoft Json C# client example.
+
+The repository provides the protocol and integration example, but not a runnable Unity scene or C# project. `X Bot@Shoved Reaction With Spin.fbx` is an optional animated model asset; at about 27.86 MiB it exceeds this repository's 25 MB limit and should be distributed separately through a Release, Git LFS, or another download channel. Bone rotations must be calibrated to the imported model's T-pose axes.
+
+## Data and Security Notes
+
+- EMG channels are `biceps_l` and `biceps_r`. On disconnect or after three seconds without an update, `force_pct` and `activation` are `null`; clients must display no data rather than 0% force.
+- A monocular 2D pose cannot reliably recover depth. Drive a 3D model with constrained bone rotation/IK instead of assigning 2D coordinates directly to bone positions.
+- The current WebSocket service is plaintext LAN-only and has no authentication. Never expose port 8765 directly to the public Internet.
+- The current RDK bridge selects the first target with 17 keypoints, so target switching can occur with multiple people or occlusion.
+
+## Recommended `.gitignore`
+
+```gitignore
+.pio/
+.venv/
+.vscode/
+compile_commands.json
+__pycache__/
+*.py[cod]
+*.bin
+*.elf
+*.map
+Objects/
+Listings/
+DebugConfig/
+*.uvoptx
+*.uvguix.*
+*.axf
+*.o
+*.d
+*.crf
+*.lst
+*.htm
+*.bak*
+project.private.config.json
+sourcemap.zip
+*.zip
+*.exe
 ```
 
-### 5. WeChat Mini Program
-Project Directory Path:
-```text
-MiniProgram
-```
-Default WebSocket connection address preset in the Mini Program:
-```text
-ws://192.168.137.230:8765
-```
-Local Debug Instructions:
-- The `appid` field in `project.config.json` is set to `touristappid` by default, which avoids the debugging restriction "The logged-in user is not a developer of this Mini Program".
-- For official submission or physical device release, replace the placeholder with the official AppID, and the project administrator must add your WeChat ID as a developer/tester on the WeChat Public Platform backend.
-- Disable valid domain name verification in the developer tools when debugging local LAN `ws://` connections.
-- Official online deployment generally requires `wss://` protocol and pre-configured authorized socket domain names.
+## License and Reproducibility
 
-## RDK Log Sample Output
-Typical normal running log content:
-```text
-HB:fusion frames=... targets=... clients=... keypoints=17 | ARM L=83.9 R=101.1 dA=17.2 | ESP32 L=OK:21.8%/r1096/ac8.2 R=MISS:0.0%/r0/acNA dF=21.8%
-TX:E-74 Filtered Error: -74 | ARM L=81.8 R=104.2 dA=22.4 | ESP32 L=OK:27.7%/r1097/ac8.8 R=MISS:0.0%/r0/acNA dF=27.7%
-[BLE-DATA] LS_ARM_BICEPS->biceps_l len=16 v=3 flags=0x00 seq=12 raw=1096 ac=8.23 sm=8.14 base=6.50 act1000=273 act=0.273
-```
-If EMG activation percentage remains 0%, prioritize troubleshooting these items:
-- Whether the `raw` value changes with sensor input signals
-- Whether `ac` / `smooth` values rise when muscles contract
-- Whether the `baseline` value is excessively high
-- Whether `act1000` stays zero persistently
-
-## Common Troubleshooting
-### WeChat Developer Tool Error: "The logged-in user is not a developer of this Mini Program"
-Modify the `appid` field in `project.config.json` for local debugging:
-```json
-"appid": "touristappid"
-```
-When using the official real AppID, contact the project administrator to add your WeChat account on the WeChat Public Platform backend.
-
-### Repeated Watchdog Restarts After RDK Startup
-Check runtime logs with this command:
-```bash
-tail -f /root/lingjing_run.log
-```
-If the following error log appears:
-```text
-/opt/tros/humble/setup.bash: line 8: AMENT_TRACE_SETUP_FILES: unbound variable
-```
-Verify that the `run_all.sh` script does not contain the `set -u` command.
-
-### ESP32 Firmware Upload Failure: COM Port Occupied
-Close PlatformIO Serial Monitor or other serial port tools, then re-execute upload command:
-```bash
-pio run -t upload
-```
-
-### RDK Receives ESP32 BLE Packets But EMG Activation Stays 0%
-Inspect raw fields in logs tagged `[BLE-DATA] len=16`:
-```text
-raw / ac / sm / base / act1000
-```
-If `raw/ac/smooth` values barely fluctuate, inspect EMG sensor power supply, GND wiring, electrode patches, signal cables and ADC input pins first.
+No license file is included yet. The project owner should choose and add a license (for example MIT or Apache-2.0) before public release, together with wiring diagrams, RDK/TROS versions, and the model version. Startup scripts, model paths, and system dependencies differ between RDK images, so a clone is not expected to run on any RDK without board-specific deployment work.
