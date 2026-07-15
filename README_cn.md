@@ -1,4 +1,4 @@
-# 灵境守护 LingJing Guardian（精简开源版）
+# 灵境守护 LingJing Guardian
 
 面向康复训练和健身动作监测的多模态原型系统：RDK X3 进行人体姿态识别和数据融合，ESP32-C3 采集肌电，STM32F103 驱动二维舵机云台；RDK 通过 WebSocket 向微信小程序和 Unity 输出实时数据。
 
